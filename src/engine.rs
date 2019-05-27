@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use std::sync::Weak;
 use std::thread::Builder;
 
+use cpal::CreationError;
 use cpal::Device;
 use cpal::EventLoop;
 use cpal::Sample as CpalSample;
@@ -104,7 +105,7 @@ fn audio_callback(engine: &Arc<Engine>, stream_id: StreamId, buffer: StreamData)
 }
 
 // Builds a new sink that targets a given device.
-fn start<S>(engine: &Arc<Engine>, device: &Device, source: S)
+fn start<S>(engine: &Arc<Engine>, device: &Device, source: S) -> Result<(), CreationError>
 where
     S: Source<Item = f32> + Send + 'static,
 {
@@ -115,7 +116,7 @@ where
 
         match end_points.entry(device.name()) {
             Entry::Vacant(e) => {
-                let (mixer, stream) = new_output_stream(engine, device);
+                let (mixer, stream) = new_output_stream(engine, device)?;
                 e.insert(Arc::downgrade(&mixer));
                 stream_to_start = Some(stream);
                 mixer
@@ -124,7 +125,7 @@ where
                 if let Some(m) = e.get().upgrade() {
                     m.clone()
                 } else {
-                    let (mixer, stream) = new_output_stream(engine, device);
+                    let (mixer, stream) = new_output_stream(engine, device)?;
                     e.insert(Arc::downgrade(&mixer));
                     stream_to_start = Some(stream);
                     mixer
@@ -138,22 +139,21 @@ where
     }
 
     mixer.add(source);
+    Ok(())
 }
 
 // Adds a new stream to the engine.
 // TODO: handle possible errors here
 fn new_output_stream(
     engine: &Arc<Engine>, device: &Device,
-) -> (Arc<dynamic_mixer::DynamicMixerController<f32>>, StreamId) {
+) -> Result<(Arc<dynamic_mixer::DynamicMixerController<f32>>, StreamId), CreationError> {
     // Determine the format to use for the new stream.
     let format = device
         .default_output_format()
         .expect("The device doesn't support any format!?");
 
-    let stream_id = engine
-        .events_loop
-        .build_output_stream(device, &format)
-        .unwrap();
+    let stream_id = engine.events_loop.build_output_stream(device, &format)?;
+
     let (mixer_tx, mixer_rx) =
         { dynamic_mixer::mixer::<f32>(format.channels, format.sample_rate.0) };
 
@@ -163,5 +163,5 @@ fn new_output_stream(
         .unwrap()
         .insert(stream_id.clone(), mixer_rx);
 
-    (mixer_tx, stream_id)
+    Ok((mixer_tx, stream_id))
 }
