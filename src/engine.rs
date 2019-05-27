@@ -75,21 +75,27 @@ fn audio_callback(engine: &Arc<Engine>, stream_id: StreamId, buffer: StreamData)
     match buffer {
         StreamData::Output {
             buffer: UnknownTypeOutputBuffer::U16(mut buffer),
-        } => for d in buffer.iter_mut() {
-            *d = mixer_rx
-                .next()
-                .map(|s| s.to_u16())
-                .unwrap_or(u16::max_value() / 2);
+        } => {
+            for d in buffer.iter_mut() {
+                *d = mixer_rx
+                    .next()
+                    .map(|s| s.to_u16())
+                    .unwrap_or(u16::max_value() / 2);
+            }
         },
         StreamData::Output {
             buffer: UnknownTypeOutputBuffer::I16(mut buffer),
-        } => for d in buffer.iter_mut() {
-            *d = mixer_rx.next().map(|s| s.to_i16()).unwrap_or(0i16);
+        } => {
+            for d in buffer.iter_mut() {
+                *d = mixer_rx.next().map(|s| s.to_i16()).unwrap_or(0i16);
+            }
         },
         StreamData::Output {
             buffer: UnknownTypeOutputBuffer::F32(mut buffer),
-        } => for d in buffer.iter_mut() {
-            *d = mixer_rx.next().unwrap_or(0f32);
+        } => {
+            for d in buffer.iter_mut() {
+                *d = mixer_rx.next().unwrap_or(0f32);
+            }
         },
         StreamData::Input { buffer: _ } => {
             panic!("Can't play an input stream!");
